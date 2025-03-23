@@ -14,6 +14,8 @@ export interface TerrainConfig {
   obstacles?: ObstacleConfig[];
   skyColor: number;
   difficulty: 'easy' | 'medium' | 'hard';
+  startPosition: THREE.Vector3;
+  finishPosition: THREE.Vector3;
 }
 
 /**
@@ -31,8 +33,8 @@ interface ObstacleConfig {
  */
 export const TERRAINS: Record<string, TerrainConfig> = {
   monaco: {
-    name: 'Monaco',
-    size: { width: 300, depth: 300 },
+    name: 'Monaco Grand Prix',
+    size: { width: 100, depth: 100 },
     length: 2.0, // 2.0 km
     trackWidth: 10,
     heightMap: (x, z) => {
@@ -43,7 +45,7 @@ export const TERRAINS: Record<string, TerrainConfig> = {
         Math.sin(x * 0.02 + z * 0.02) * 1
       );
     },
-    groundColor: 0x4a7f36, // Darker green
+    groundColor: 0x3e5641, // Dark green
     trackColor: 0x333333, // Darker gray
     obstacles: [
       // Strategic obstacles for Monaco
@@ -51,13 +53,15 @@ export const TERRAINS: Record<string, TerrainConfig> = {
       { type: 'box', position: { x: -25, y: 1, z: -40 }, size: { width: 6, height: 3, depth: 3 }, color: 0xc0c0c0 },
       { type: 'cylinder', position: { x: 40, y: 1.5, z: -20 }, size: { radius: 3, height: 3 }, color: 0xb0b0b0 }
     ],
-    skyColor: 0x87ceeb, // Sky blue
-    difficulty: 'medium'
+    skyColor: 0x87ceeb, // Light blue
+    difficulty: 'medium',
+    startPosition: new THREE.Vector3(0, 0.5, -40),
+    finishPosition: new THREE.Vector3(0, 0.5, 40)
   },
   
   alpines: {
-    name: 'Alpines',
-    size: { width: 400, depth: 400 },
+    name: 'Alpine Circuit',
+    size: { width: 100, depth: 100 },
     length: 2.5, // 2.5 km
     trackWidth: 12,
     heightMap: (x, z) => {
@@ -69,7 +73,7 @@ export const TERRAINS: Record<string, TerrainConfig> = {
         Math.cos(z * 0.08) * 2
       );
     },
-    groundColor: 0x7a947a, // Mountain green
+    groundColor: 0xf0f0f0, // White/snow
     trackColor: 0x505050, // Mountain road
     obstacles: [
       // Alpine rocks and obstacles
@@ -77,13 +81,15 @@ export const TERRAINS: Record<string, TerrainConfig> = {
       { type: 'box', position: { x: -60, y: 3, z: -50 }, size: { width: 10, height: 6, depth: 7 }, color: 0x707070 },
       { type: 'sphere', position: { x: 30, y: 4, z: -60 }, size: { radius: 4 }, color: 0x909090 }
     ],
-    skyColor: 0xadd8e6, // Light blue
-    difficulty: 'hard'
+    skyColor: 0xc0c9d0, // Light gray
+    difficulty: 'hard',
+    startPosition: new THREE.Vector3(-40, 0.5, 0),
+    finishPosition: new THREE.Vector3(40, 0.5, 0)
   },
   
   dubai: {
-    name: 'Dubai',
-    size: { width: 500, depth: 500 },
+    name: 'Dubai Desert',
+    size: { width: 100, depth: 100 },
     length: 3.0, // 3.0 km
     trackWidth: 15,
     heightMap: (x, z) => {
@@ -94,7 +100,7 @@ export const TERRAINS: Record<string, TerrainConfig> = {
         Math.sin(x * 0.05 + z * 0.05) * 0.5
       );
     },
-    groundColor: 0xdbca98, // Sand color
+    groundColor: 0xdeb887, // Sand color
     trackColor: 0x666666, // Asphalt
     obstacles: [
       // Dubai-themed obstacles
@@ -102,13 +108,15 @@ export const TERRAINS: Record<string, TerrainConfig> = {
       { type: 'cylinder', position: { x: -80, y: 7, z: -90 }, size: { radius: 4, height: 14 }, color: 0xd0d0d0 },
       { type: 'box', position: { x: 50, y: 6, z: -70 }, size: { width: 12, height: 12, depth: 6 }, color: 0xf0f0f0 }
     ],
-    skyColor: 0xb8e0f4, // Hot day blue
-    difficulty: 'easy'
+    skyColor: 0xfad6a5, // Light orange
+    difficulty: 'easy',
+    startPosition: new THREE.Vector3(-30, 0.5, -30),
+    finishPosition: new THREE.Vector3(30, 0.5, 30)
   },
   
   baku: {
-    name: 'Baku',
-    size: { width: 450, depth: 450 },
+    name: 'Baku City Circuit',
+    size: { width: 100, depth: 100 },
     length: 2.8, // 2.8 km
     trackWidth: 12,
     heightMap: (x, z) => {
@@ -119,7 +127,7 @@ export const TERRAINS: Record<string, TerrainConfig> = {
         (Math.abs(Math.sin(x * 0.1)) + Math.abs(Math.sin(z * 0.1))) * 0.5
       );
     },
-    groundColor: 0x6a7d5d, // Muted green
+    groundColor: 0x808080, // Gray (asphalt)
     trackColor: 0x3c3c3c, // Dark asphalt
     obstacles: [
       // City-like obstacles for Baku
@@ -127,13 +135,15 @@ export const TERRAINS: Record<string, TerrainConfig> = {
       { type: 'box', position: { x: -45, y: 5, z: -65 }, size: { width: 7, height: 10, depth: 5 }, color: 0xc0c0c0 },
       { type: 'box', position: { x: 60, y: 3, z: -50 }, size: { width: 6, height: 6, depth: 4 }, color: 0xa0a0a0 }
     ],
-    skyColor: 0x82b0d0, // Late afternoon blue
-    difficulty: 'medium'
+    skyColor: 0x1e3c72, // Dark blue
+    difficulty: 'medium',
+    startPosition: new THREE.Vector3(0, 0.5, -40),
+    finishPosition: new THREE.Vector3(0, 0.5, 40)
   },
   
   shanghai: {
-    name: 'Shanghai',
-    size: { width: 420, depth: 420 },
+    name: 'Shanghai International',
+    size: { width: 100, depth: 100 },
     length: 2.7, // 2.7 km
     trackWidth: 14,
     heightMap: (x, z) => {
@@ -144,7 +154,7 @@ export const TERRAINS: Record<string, TerrainConfig> = {
         Math.sin(x * 0.1) * Math.cos(z * 0.1) * 0.5
       );
     },
-    groundColor: 0x70865b, // Green
+    groundColor: 0x7f8c8d, // Medium gray
     trackColor: 0x444444, // Modern asphalt
     obstacles: [
       // Shanghai-themed obstacles
@@ -152,8 +162,10 @@ export const TERRAINS: Record<string, TerrainConfig> = {
       { type: 'box', position: { x: -60, y: 4, z: -80 }, size: { width: 8, height: 8, depth: 5 }, color: 0xe0e0e0 },
       { type: 'sphere', position: { x: 70, y: 3, z: -40 }, size: { radius: 3 }, color: 0xc0c0c0 }
     ],
-    skyColor: 0x93c5df, // Urban blue
-    difficulty: 'medium'
+    skyColor: 0x2c3e50, // Dark blue-gray
+    difficulty: 'medium',
+    startPosition: new THREE.Vector3(-40, 0.5, -40),
+    finishPosition: new THREE.Vector3(40, 0.5, 40)
   }
 };
 
@@ -261,5 +273,73 @@ export function createTerrainModel(config: TerrainConfig): THREE.Group {
     });
   }
   
+  // Create start flag
+  const startFlag = createFlag(0xff0000); // Red flag
+  startFlag.position.copy(config.startPosition);
+  terrainGroup.add(startFlag);
+  
+  // Create finish flag
+  const finishFlag = createFlag(0x00ff00); // Green flag
+  finishFlag.position.copy(config.finishPosition);
+  terrainGroup.add(finishFlag);
+  
+  // Create start line
+  const startLine = createLine(0xffffff); // White line
+  startLine.position.copy(config.startPosition);
+  startLine.position.y = 0.01; // Slightly above ground to prevent z-fighting
+  terrainGroup.add(startLine);
+  
+  // Create finish line
+  const finishLine = createLine(0xffffff); // White line
+  finishLine.position.copy(config.finishPosition);
+  finishLine.position.y = 0.01; // Slightly above ground
+  terrainGroup.add(finishLine);
+  
   return terrainGroup;
+}
+
+/**
+ * Create a flag
+ * @param color Flag color
+ * @returns THREE.js group containing the flag
+ */
+function createFlag(color: number): THREE.Group {
+  const group = new THREE.Group();
+  
+  // Create pole
+  const poleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 5, 8);
+  const poleMaterial = new THREE.MeshStandardMaterial({ color: 0x888888 });
+  const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+  pole.position.y = 2.5; // Half height
+  pole.castShadow = true;
+  group.add(pole);
+  
+  // Create flag
+  const flagGeometry = new THREE.PlaneGeometry(2, 1);
+  const flagMaterial = new THREE.MeshStandardMaterial({ 
+    color: color,
+    side: THREE.DoubleSide
+  });
+  const flag = new THREE.Mesh(flagGeometry, flagMaterial);
+  flag.position.set(1, 4, 0); // Position at top of pole
+  flag.castShadow = true;
+  group.add(flag);
+  
+  return group;
+}
+
+/**
+ * Create a line on the ground
+ * @param color Line color
+ * @returns THREE.js mesh containing the line
+ */
+function createLine(color: number): THREE.Mesh {
+  const lineGeometry = new THREE.PlaneGeometry(10, 1);
+  const lineMaterial = new THREE.MeshStandardMaterial({ 
+    color: color,
+    side: THREE.DoubleSide
+  });
+  const line = new THREE.Mesh(lineGeometry, lineMaterial);
+  line.rotation.x = -Math.PI / 2; // Lay flat on ground
+  return line;
 } 

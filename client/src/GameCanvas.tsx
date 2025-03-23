@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { PhysicsWorld } from './lib/physics';
-import { Car } from './lib/car';
+import { Car, RaceStatus } from './lib/car';
 import { Controls } from './lib/controls';
 import { TERRAINS, createTerrainModel } from './lib/models/terrains';
 
@@ -13,6 +13,12 @@ interface GameCanvasProps {
 const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [health, setHealth] = useState<number>(100);
+  const [raceStatus, setRaceStatus] = useState<RaceStatus>({
+    raceStarted: false,
+    raceFinished: false,
+    raceTime: 0
+  });
+  const [showRestartModal, setShowRestartModal] = useState<boolean>(false);
   const [debugInfo, setDebugInfo] = useState<{
     position: string;
     velocity: string;
@@ -24,6 +30,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
     controls: "none",
     forces: "0,0,0"
   });
+  
+  // Reference to car for restart function
+  const carRef = useRef<Car | null>(null);
   
   useEffect(() => {
     if (!mountRef.current) return;
@@ -72,9 +81,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
     };
     const carColor = carColors[terrainName as keyof typeof carColors] || 0xff0000;
     
-    // Position the car a bit higher to avoid collision with the ground
-    const car = new Car(new THREE.Vector3(0, 5, 0), physics, carColor);
+    // Position the car a bit above the start position
+    const startPos = terrainConfig.startPosition.clone();
+    startPos.y = 5; // Higher starting position to avoid collision
+    
+    // Create car with start and finish positions
+    const car = new Car(
+      startPos,
+      physics,
+      carColor,
+      terrainConfig.startPosition,
+      terrainConfig.finishPosition
+    );
     scene.add(car.mesh);
+    carRef.current = car;
     
     // Log car and physics details for debugging
     console.log("Car created:", {
@@ -145,6 +165,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
       // Update car state
       car.update(deltaTime);
       
+      // Update race status in React state
+      setRaceStatus(car.raceStatus);
+      
+      // Show restart modal when race is finished
+      if (car.raceStatus.raceFinished && !showRestartModal) {
+        setShowRestartModal(true);
+      }
+      
       // Update physics world
       physics.update();
       
@@ -183,6 +211,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
     // Handle keyboard events directly for debugging
     const handleKeyDown = (e: KeyboardEvent) => {
       console.log("Key pressed:", e.key);
+      
+      // 'R' key to teleport back to start
+      if (e.key.toLowerCase() === 'r' && !car.raceStatus.raceStarted) {
+        const teleportPos = terrainConfig.startPosition.clone();
+        teleportPos.y = 3; // Slightly above ground
+        car.teleportTo(teleportPos);
+      }
     };
     
     window.addEventListener('keydown', handleKeyDown);
@@ -223,11 +258,29 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
       // Dispose car
       car.dispose();
     };
-  }, [terrainName]);
+  }, [terrainName, showRestartModal]);
+  
+  // Function to handle race restart
+  const handleRestartRace = () => {
+    if (carRef.current) {
+      // Reset race status
+      carRef.current.resetRace();
+      
+      // Teleport car back to start position
+      const startPos = TERRAINS[terrainName].startPosition.clone();
+      startPos.y = 3; // Slightly above ground
+      carRef.current.teleportTo(startPos);
+      
+      // Close the modal
+      setShowRestartModal(false);
+    }
+  };
   
   return (
     <>
       <div ref={mountRef} style={{ width: '100%', height: '100vh' }} />
+      
+      {/* Game HUD - Health and Debug Info */}
       <div 
         style={{ 
           position: 'absolute', 
@@ -257,6 +310,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
           }} />
         </div>
         
+        {/* Race status display */}
+        <div style={{ marginTop: '10px' }}>
+          <div>
+            <strong>RACE STATUS:</strong> {
+              raceStatus.raceFinished ? 'FINISHED' : 
+              raceStatus.raceStarted ? 'RACING' : 
+              'NOT STARTED'
+            }
+          </div>
+          
+          {raceStatus.raceStarted && (
+            <div style={{ 
+              fontSize: '20px', 
+              fontWeight: 'bold', 
+              fontFamily: 'monospace' 
+            }}>
+              {raceStatus.raceTime.toFixed(2)}s
+            </div>
+          )}
+        </div>
+        
         <div style={{ marginTop: '10px', fontSize: '12px' }}>
           <div><strong>DEBUG INFO:</strong></div>
           <div>Position: {debugInfo.position}</div>
@@ -268,6 +342,41 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
           </div>
         </div>
       </div>
+      
+      {/* Race completion modal */}
+      {showRestartModal && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'rgba(0,0,0,0.85)',
+          padding: '20px',
+          borderRadius: '10px',
+          color: 'white',
+          width: '400px',
+          textAlign: 'center',
+          zIndex: 100
+        }}>
+          <h2>Race Completed!</h2>
+          <p style={{ fontSize: '24px' }}>Your time: <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>{raceStatus.raceTime.toFixed(2)}s</span></p>
+          <button 
+            onClick={handleRestartRace}
+            style={{
+              background: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '5px',
+              fontSize: '16px',
+              cursor: 'pointer',
+              marginTop: '20px'
+            }}
+          >
+            Restart Race
+          </button>
+        </div>
+      )}
     </>
   );
 };

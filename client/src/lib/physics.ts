@@ -229,26 +229,66 @@ export class PhysicsWorld {
       console.log("Applying forces:", forces);
     }
     
+    // Get current velocity and car orientation
+    const currentVelocity = carBody.velocity.length();
+    const carForwardDir = new CANNON.Vec3(0, 0, 1); // Local z-axis is forward
+    const worldForwardDir = carBody.quaternion.vmult(carForwardDir);
+    
     // Apply forward/backward force (in car's local Z axis)
-    const forceDirection = new CANNON.Vec3(0, 0, acceleration - braking);
+    // Scale force based on velocity to prevent excessive acceleration
+    const maxSpeed = 30; // Maximum speed in m/s (about 108 km/h)
+    const speedFactor = Math.max(0, 1 - (currentVelocity / maxSpeed));
     
-    // Apply the force at the car's position (in local coordinates)
-    carBody.applyLocalForce(forceDirection, new CANNON.Vec3(0, 0, 0));
-    
-    // Apply steering as a torque around the Y axis (vertical)
-    const steeringTorque = new CANNON.Vec3(0, steering, 0);
-    carBody.applyTorque(steeringTorque);
-    
-    // Apply downforce for better stability at higher speeds
-    const speedSquared = carBody.velocity.lengthSquared();
-    if (speedSquared > 25) { // Only apply downforce at higher speeds
-      const downforce = Math.min(speedSquared * 10, 2000);
-      const downforceVector = new CANNON.Vec3(0, -downforce, 0);
-      carBody.applyLocalForce(downforceVector, new CANNON.Vec3(0, 0, 0));
+    // Calculate final force with speed limiting
+    let finalForce = 0;
+    if (acceleration > 0) {
+      // Apply acceleration with speed limiting
+      finalForce = acceleration * speedFactor;
+    } else if (braking > 0) {
+      // Braking force increases with speed
+      finalForce = -braking * (currentVelocity / maxSpeed + 0.2);
     }
     
+    // Apply force in local coordinates (z-axis is forward for the car)
+    const forceDirection = new CANNON.Vec3(0, 0, finalForce);
+    carBody.applyLocalForce(forceDirection, new CANNON.Vec3(0, 0, 0));
+    
+    // Steering is applied as rotational impulse rather than torque
+    // This makes the car rotate more predictably
+    if (steering !== 0) {
+      // Apply steering based on speed - less steering at high speeds
+      const steeringFactor = Math.max(0.2, 1 - (currentVelocity / maxSpeed * 0.8));
+      const steeringAmount = steering * steeringFactor;
+      
+      // Calculate the impulse in local space
+      const impulse = new CANNON.Vec3(0, steeringAmount * 0.03, 0);
+      
+      // Apply rotational impulse for steering
+      carBody.angularVelocity.y = steering * 0.05;
+    }
+    
+    // Apply artificial gravity to keep the car grounded
+    const artificialGravity = new CANNON.Vec3(0, -50, 0);
+    carBody.applyForce(artificialGravity, carBody.position);
+    
+    // Apply stabilizing torque to keep car upright
+    const upVector = new CANNON.Vec3(0, 1, 0);
+    const carUp = new CANNON.Vec3(0, 1, 0);
+    carBody.quaternion.vmult(carUp, carUp);
+    
+    // Calculate the axis of rotation needed to align car.up with world.up
+    const stabilizationTorque = new CANNON.Vec3();
+    upVector.cross(carUp, stabilizationTorque);
+    stabilizationTorque.scale(50, stabilizationTorque); // Strong stabilization
+    
+    carBody.applyTorque(stabilizationTorque);
+    
+    // Apply damping to rotation around X and Z axes to prevent somersaults
+    carBody.angularVelocity.x *= 0.9;
+    carBody.angularVelocity.z *= 0.9;
+    
     // If significant forces are applied, log velocity for debugging
-    if (acceleration > 1000 || braking > 1000 || Math.abs(steering) > 10) {
+    if (finalForce > 1000 || Math.abs(steering) > 10) {
       console.log("Car velocity after force:", carBody.velocity, "Car Angular Velocity:", carBody.angularVelocity);
     }
   }

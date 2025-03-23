@@ -3,6 +3,12 @@ import * as CANNON from 'cannon-es';
 import { PhysicsWorld } from './physics';
 import { createCarModel } from './models/car';
 
+export interface RaceStatus {
+  raceStarted: boolean;
+  raceFinished: boolean;
+  raceTime: number;  // Time in seconds
+}
+
 export class Car {
   // THREE.js mesh
   public mesh: THREE.Object3D;
@@ -19,6 +25,20 @@ export class Car {
   public crashed: boolean = false;
   public crashTimeout: number | null = null;
   
+  // Race status
+  public raceStatus: RaceStatus = {
+    raceStarted: false,
+    raceFinished: false,
+    raceTime: 0
+  };
+  private raceStartTime: number = 0;
+  private raceFinishTime: number = 0;
+  
+  // Start and finish positions
+  private startPosition: THREE.Vector3;
+  private finishPosition: THREE.Vector3;
+  private readonly CHECKPOINT_RADIUS = 10; // How close to get to start/finish
+  
   // Safe initialization period
   private isInitializing: boolean = true;
   private initializationTimer: number | null = null;
@@ -34,11 +54,20 @@ export class Car {
   constructor(
     position: THREE.Vector3,
     physics: PhysicsWorld,
-    color: number = 0xff0000
+    color: number = 0xff0000,
+    startPosition: THREE.Vector3,
+    finishPosition: THREE.Vector3
   ) {
+    // Store race track positions
+    this.startPosition = startPosition;
+    this.finishPosition = finishPosition;
+    
     // Create a detailed car mesh using our model function
     this.mesh = createCarModel(color);
     this.mesh.position.copy(position);
+    
+    // Rotate car to face forward based on start/finish positions
+    this.orientCarTowardsFinish();
     
     // Create the physics body with an increased starting height
     this.body = physics.createCarBody(
@@ -86,6 +115,23 @@ export class Car {
   }
   
   /**
+   * Orient the car to face the finish line
+   */
+  private orientCarTowardsFinish() {
+    // Get direction from start to finish
+    const direction = new THREE.Vector3();
+    direction.subVectors(this.finishPosition, this.startPosition).normalize();
+    
+    // Create a rotation to face this direction
+    // Default car faces z direction (0,0,1)
+    // We need to rotate it to face the finish
+    const angle = Math.atan2(direction.x, direction.z);
+    this.mesh.rotation.y = angle;
+    
+    console.log("Car oriented towards finish with angle:", angle);
+  }
+  
+  /**
    * Start the initialization safety period
    */
   private startInitializationPeriod() {
@@ -112,6 +158,20 @@ export class Car {
     if (this.crashed) {
       console.log("Car is crashed, not applying controls");
       return;
+    }
+    
+    // Don't allow controls when race is finished
+    if (this.raceStatus.raceFinished) {
+      console.log("Race is finished, not applying controls");
+      return;
+    }
+    
+    // If near start line and not started, trigger race start
+    if (!this.raceStatus.raceStarted) {
+      const distanceToStart = this.mesh.position.distanceTo(this.startPosition);
+      if (distanceToStart < this.CHECKPOINT_RADIUS) {
+        this.startRace();
+      }
     }
     
     // Reset forces
@@ -183,6 +243,62 @@ export class Car {
         this.nitroTimeLeft = 0;
       }
     }
+    
+    // Update race time if race is in progress
+    if (this.raceStatus.raceStarted && !this.raceStatus.raceFinished) {
+      this.raceStatus.raceTime = (Date.now() - this.raceStartTime) / 1000;
+      
+      // Check if car has reached the finish line
+      const distanceToFinish = this.mesh.position.distanceTo(this.finishPosition);
+      if (distanceToFinish < this.CHECKPOINT_RADIUS) {
+        this.finishRace();
+      }
+    }
+  }
+  
+  /**
+   * Start the race
+   */
+  startRace() {
+    if (this.raceStatus.raceStarted) return;
+    
+    console.log("Race started!");
+    this.raceStatus.raceStarted = true;
+    this.raceStartTime = Date.now();
+  }
+  
+  /**
+   * Finish the race
+   */
+  finishRace() {
+    if (this.raceStatus.raceFinished) return;
+    
+    this.raceFinishTime = Date.now();
+    this.raceStatus.raceFinished = true;
+    this.raceStatus.raceTime = (this.raceFinishTime - this.raceStartTime) / 1000;
+    
+    console.log(`Race finished! Time: ${this.raceStatus.raceTime.toFixed(2)} seconds`);
+    
+    // Apply braking forces to slow the car down
+    this.body.velocity.set(0, 0, 0);
+    this.body.angularVelocity.set(0, 0, 0);
+  }
+  
+  /**
+   * Reset the race
+   */
+  resetRace() {
+    console.log("Race reset");
+    
+    // Reset race status
+    this.raceStatus.raceStarted = false;
+    this.raceStatus.raceFinished = false;
+    this.raceStatus.raceTime = 0;
+    
+    // Reset car state (optional - depends on if you want to reset position)
+    // this.body.position.copy(new CANNON.Vec3(this.startPosition.x, this.startPosition.y, this.startPosition.z));
+    // this.body.velocity.set(0, 0, 0);
+    // this.body.angularVelocity.set(0, 0, 0);
   }
   
   /**
@@ -234,6 +350,19 @@ export class Car {
         console.log("Car reset after crash");
       }, 3000);
     }
+  }
+  
+  /**
+   * Teleport car to specified position
+   * @param position New position
+   */
+  teleportTo(position: THREE.Vector3) {
+    this.body.position.x = position.x;
+    this.body.position.y = position.y;
+    this.body.position.z = position.z;
+    this.body.velocity.set(0, 0, 0);
+    this.body.angularVelocity.set(0, 0, 0);
+    console.log("Car teleported to:", position);
   }
   
   /**
