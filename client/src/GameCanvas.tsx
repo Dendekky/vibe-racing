@@ -13,6 +13,17 @@ interface GameCanvasProps {
 const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [health, setHealth] = useState<number>(100);
+  const [debugInfo, setDebugInfo] = useState<{
+    position: string;
+    velocity: string;
+    controls: string;
+    forces: string;
+  }>({
+    position: "0,0,0",
+    velocity: "0,0,0",
+    controls: "none",
+    forces: "0,0,0"
+  });
   
   useEffect(() => {
     if (!mountRef.current) return;
@@ -61,11 +72,25 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
     };
     const carColor = carColors[terrainName as keyof typeof carColors] || 0xff0000;
     
-    const car = new Car(new THREE.Vector3(0, 1, 0), physics, carColor);
+    // Position the car a bit higher to avoid collision with the ground
+    const car = new Car(new THREE.Vector3(0, 5, 0), physics, carColor);
     scene.add(car.mesh);
+    
+    // Log car and physics details for debugging
+    console.log("Car created:", {
+      position: car.mesh.position,
+      physicsBody: car.body,
+      mass: car.body.mass,
+      type: car.body.type
+    });
     
     // Initialize controls
     const controls = new Controls();
+    console.log("Controls initialized");
+    
+    // Add a helper visual to see the car's position and orientation
+    const axesHelper = new THREE.AxesHelper(5);
+    car.mesh.add(axesHelper);
     
     // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -93,6 +118,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
     const cameraOffset = new THREE.Vector3(0, 3, 8);
     const cameraLookOffset = new THREE.Vector3(0, 0, -5);
     
+    // Create a visual helper for the ground plane
+    const gridHelper = new THREE.GridHelper(100, 100);
+    scene.add(gridHelper);
+    
     // Animation loop
     const animate = (time: number) => {
       requestAnimationFrame(animate);
@@ -107,8 +136,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
       // Update controls
       controls.update();
       
+      // Get and log control state for debugging
+      const inputState = controls.getInputState();
+      
       // Apply controls to car
-      car.applyControls(controls.getInputState(), physics);
+      car.applyControls(inputState, physics);
       
       // Update car state
       car.update(deltaTime);
@@ -118,6 +150,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
       
       // Update health state
       setHealth(car.health);
+      
+      // Update debug info
+      setDebugInfo({
+        position: `x:${car.mesh.position.x.toFixed(2)}, y:${car.mesh.position.y.toFixed(2)}, z:${car.mesh.position.z.toFixed(2)}`,
+        velocity: `x:${car.body.velocity.x.toFixed(2)}, y:${car.body.velocity.y.toFixed(2)}, z:${car.body.velocity.z.toFixed(2)}`,
+        controls: `fwd:${inputState.forward}, back:${inputState.backward}, left:${inputState.left}, right:${inputState.right}, nitro:${inputState.nitro}`,
+        forces: `acc:${car.acceleration.toFixed(0)}, brake:${car.braking.toFixed(0)}, steer:${car.steering.toFixed(0)}`
+      });
+      
+      // Log car movement if it changes
+      if (Math.abs(car.body.velocity.x) > 0.1 || 
+          Math.abs(car.body.velocity.y) > 0.1 || 
+          Math.abs(car.body.velocity.z) > 0.1) {
+        console.log("Car is moving:", car.body.velocity);
+      }
       
       // Update camera position to follow car
       const carPosition = car.mesh.position.clone();
@@ -133,6 +180,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
     
     animate(0);
     
+    // Handle keyboard events directly for debugging
+    const handleKeyDown = (e: KeyboardEvent) => {
+      console.log("Key pressed:", e.key);
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    
     // Handle window resize
     const handleResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
@@ -145,6 +199,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('keydown', handleKeyDown);
+      
       if (mountRef.current) {
         mountRef.current.removeChild(renderer.domElement);
       }
@@ -180,7 +236,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
           background: 'rgba(0,0,0,0.5)',
           padding: '10px',
           borderRadius: '5px',
-          color: 'white'
+          color: 'white',
+          width: '300px'
         }}
       >
         <div>Health: {health}%</div>
@@ -198,6 +255,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
             background: health > 50 ? '#4CAF50' : health > 25 ? '#FFC107' : '#F44336',
             transition: 'width 0.3s ease'
           }} />
+        </div>
+        
+        <div style={{ marginTop: '10px', fontSize: '12px' }}>
+          <div><strong>DEBUG INFO:</strong></div>
+          <div>Position: {debugInfo.position}</div>
+          <div>Velocity: {debugInfo.velocity}</div>
+          <div>Controls: {debugInfo.controls}</div>
+          <div>Forces: {debugInfo.forces}</div>
+          <div style={{ marginTop: '5px', fontSize: '10px' }}>
+            Controls: WASD or Arrow Keys, Space for nitro
+          </div>
         </div>
       </div>
     </>

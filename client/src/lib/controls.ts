@@ -18,12 +18,26 @@ export class Controls {
   public right: boolean = false;
   public nitro: boolean = false;
   
+  // Event handler references for proper cleanup
+  private keydownHandler: (event: KeyboardEvent) => void;
+  private keyupHandler: (event: KeyboardEvent) => void;
+  private gamepadConnectedHandler: (event: GamepadEvent) => void;
+  private gamepadDisconnectedHandler: (event: GamepadEvent) => void;
+  
   constructor() {
+    // Create bound handlers (important for proper removal later)
+    this.keydownHandler = this.handleKeyDown.bind(this);
+    this.keyupHandler = this.handleKeyUp.bind(this);
+    this.gamepadConnectedHandler = this.handleGamepadConnected.bind(this);
+    this.gamepadDisconnectedHandler = this.handleGamepadDisconnected.bind(this);
+    
     // Initialize keyboard listeners
     this.initKeyboard();
     
     // Initialize gamepad listeners
     this.initGamepad();
+    
+    console.log("Controls constructor called, event listeners set up");
   }
   
   /**
@@ -31,14 +45,10 @@ export class Controls {
    */
   private initKeyboard() {
     // Key down event
-    window.addEventListener('keydown', (event) => {
-      this.keys[event.key.toLowerCase()] = true;
-    });
+    window.addEventListener('keydown', this.keydownHandler);
     
     // Key up event
-    window.addEventListener('keyup', (event) => {
-      this.keys[event.key.toLowerCase()] = false;
-    });
+    window.addEventListener('keyup', this.keyupHandler);
   }
   
   /**
@@ -46,18 +56,10 @@ export class Controls {
    */
   private initGamepad() {
     // Gamepad connected
-    window.addEventListener('gamepadconnected', (event) => {
-      this.gamepad = navigator.getGamepads()[event.gamepad.index];
-      this.gamepadConnected = true;
-      console.log('Gamepad connected:', this.gamepad?.id);
-    });
+    window.addEventListener('gamepadconnected', this.gamepadConnectedHandler);
     
     // Gamepad disconnected
-    window.addEventListener('gamepaddisconnected', (event) => {
-      this.gamepad = null;
-      this.gamepadConnected = false;
-      console.log('Gamepad disconnected');
-    });
+    window.addEventListener('gamepaddisconnected', this.gamepadDisconnectedHandler);
   }
   
   /**
@@ -85,19 +87,31 @@ export class Controls {
    */
   private updateKeyboardInput() {
     // Forward: W or Up Arrow
-    this.forward = this.keys['w'] || this.keys['arrowup'] || false;
+    this.forward = Boolean(this.keys['w'] || this.keys['arrowup']);
     
     // Backward: S or Down Arrow
-    this.backward = this.keys['s'] || this.keys['arrowdown'] || false;
+    this.backward = Boolean(this.keys['s'] || this.keys['arrowdown']);
     
     // Left: A or Left Arrow
-    this.left = this.keys['a'] || this.keys['arrowleft'] || false;
+    this.left = Boolean(this.keys['a'] || this.keys['arrowleft']);
     
     // Right: D or Right Arrow
-    this.right = this.keys['d'] || this.keys['arrowright'] || false;
+    this.right = Boolean(this.keys['d'] || this.keys['arrowright']);
     
     // Nitro: Spacebar
-    this.nitro = this.keys[' '] || false;
+    this.nitro = Boolean(this.keys[' ']);
+    
+    // Log active controls
+    if (this.forward || this.backward || this.left || this.right || this.nitro) {
+      console.log("Active controls:", {
+        forward: this.forward,
+        backward: this.backward,
+        left: this.left,
+        right: this.right,
+        nitro: this.nitro,
+        rawKeys: this.keys
+      });
+    }
   }
   
   /**
@@ -153,7 +167,49 @@ export class Controls {
    * Clean up event listeners
    */
   dispose() {
-    // Remove event listeners (if needed)
-    // Typically browsers will clean these up when the page is unloaded
+    // Remove event listeners explicitly
+    window.removeEventListener('keydown', this.keydownHandler);
+    window.removeEventListener('keyup', this.keyupHandler);
+    window.removeEventListener('gamepadconnected', this.gamepadConnectedHandler);
+    window.removeEventListener('gamepaddisconnected', this.gamepadDisconnectedHandler);
+    
+    console.log("Controls disposed, event listeners removed");
+  }
+  
+  // Explicit handler functions
+  private handleKeyDown(event: KeyboardEvent) {
+    const key = event.key.toLowerCase();
+    console.log(`Key down: ${key}`);
+    this.keys[key] = true;
+    
+    // Special case for arrow keys which might have different implementations
+    if (event.code === 'ArrowUp') this.keys['arrowup'] = true;
+    if (event.code === 'ArrowDown') this.keys['arrowdown'] = true;
+    if (event.code === 'ArrowLeft') this.keys['arrowleft'] = true;
+    if (event.code === 'ArrowRight') this.keys['arrowright'] = true;
+  }
+  
+  private handleKeyUp(event: KeyboardEvent) {
+    const key = event.key.toLowerCase();
+    console.log(`Key up: ${key}`);
+    this.keys[key] = false;
+    
+    // Special case for arrow keys
+    if (event.code === 'ArrowUp') this.keys['arrowup'] = false;
+    if (event.code === 'ArrowDown') this.keys['arrowdown'] = false;
+    if (event.code === 'ArrowLeft') this.keys['arrowleft'] = false;
+    if (event.code === 'ArrowRight') this.keys['arrowright'] = false;
+  }
+  
+  private handleGamepadConnected(event: GamepadEvent) {
+    this.gamepad = navigator.getGamepads()[event.gamepad.index];
+    this.gamepadConnected = true;
+    console.log('Gamepad connected:', this.gamepad?.id);
+  }
+  
+  private handleGamepadDisconnected(event: GamepadEvent) {
+    this.gamepad = null;
+    this.gamepadConnected = false;
+    console.log('Gamepad disconnected');
   }
 } 
