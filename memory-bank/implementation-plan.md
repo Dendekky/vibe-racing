@@ -47,7 +47,7 @@ This implementation plan outlines the development process for a 3D car racing Pv
    - **Assigned**: DevOps Engineer.
    - **Duration**: 3 days.
 
-4. **Asset Preparation**
+<!-- 4. **Asset Preparation**
    - **Description**: Create placeholder 3D assets for early testing.
    - **Steps**:
      - Model a basic low-poly car (~5k polygons) in Blender.
@@ -56,7 +56,21 @@ This implementation plan outlines the development process for a 3D car racing Pv
      - Set up configurable asset optimization settings for performance tuning.
    - **Output**: Placeholder car and terrain assets.
    - **Assigned**: 3D Artist.
-   - **Duration**: 4 days.
+   - **Duration**: 4 days. -->
+
+4. **Asset Preparation (Three.js)**
+   - **Description**: Create programmatic 3D assets using Three.js for early testing.
+   - **Steps**:
+     - Define a basic car geometry in `/client/lib/models/car.js` using `BoxGeometry` or `ExtrudeGeometry` (e.g., a rectangular chassis with cylindrical wheels).
+     - Create simple terrain meshes for 5 locations in `/client/lib/models/terrains.js` using `PlaneGeometry` with height variations (e.g., sine waves for hills).
+     - Apply basic materials (e.g., `MeshBasicMaterial`) with colors or simple textures.
+     - Test rendering in a Three.js scene to ensure compatibility.
+   - **Output**: Placeholder car and terrain assets built with Three.js code.
+   - **Assigned**: Frontend Developer (with Three.js experience).
+   - **Duration**: 5 days (increased due to coding complexity vs. Blender modeling).
+
+**Dependencies**: None (foundational phase).  
+**Duration**: 2 weeks total.
 
 **Dependencies**: None (foundation phase).  
 **Duration**: 2 weeks total.
