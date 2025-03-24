@@ -3,7 +3,7 @@ import dynamic from "next/dynamic";
 import styles from "@/styles/Home.module.css";
 
 // Import GameCanvas with dynamic import and SSR disabled (because it uses browser APIs)
-const GameCanvas = dynamic(() => import('@/src/GameCanvas'), {
+const GameCanvas = dynamic(() => import('@/src/components/game/GameCanvas'), {
   ssr: false,
 });
 

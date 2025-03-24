@@ -16,6 +16,12 @@ export class Car {
   public body: CANNON.Body;
   // Car state
   public health: number = 100;
+  public isDisabled: boolean = false;
+  public disableTimer: number = 0;
+  private readonly DISABLE_DURATION: number = 3000; // 3 seconds in milliseconds
+  private readonly MINOR_BUMP_DAMAGE: number = 5;
+  private readonly WALL_CRASH_DAMAGE: number = 10;
+  private readonly HEAD_ON_CRASH_DAMAGE: number = 20;
   public maxSpeed: number = 50; // m/s
   public acceleration: number = 0;
   public braking: number = 0;
@@ -44,12 +50,15 @@ export class Car {
   private initializationTimer: number | null = null;
   private readonly INIT_SAFE_PERIOD = 2000; // 2 seconds grace period
   
-  // Physics constants - increased for better responsiveness
-  private readonly ACCELERATION_FORCE = 50000; // Increased from 20000
-  private readonly BRAKING_FORCE = 30000;
-  private readonly STEERING_FORCE = 150; // Increased from 50
+  // Physics constants - adjusted for better control
+  private readonly ACCELERATION_FORCE = 20000; // Increased for more responsive acceleration
+  private readonly BRAKING_FORCE = 15000;      // Increased for more responsive braking
+  private readonly STEERING_FORCE = 100;       // Increased for more responsive steering
   private readonly NITRO_MULTIPLIER = 1.3;
-  private readonly NITRO_DURATION = 5000; // 5 seconds in ms
+  private readonly NITRO_DURATION = 5000;     // 5 seconds in ms
+  private readonly AUTO_DRIVE_DURATION = 5000; // 5 seconds for auto-drive
+  private autoDriveStartTime: number = 0;
+  private isAutoDriving: boolean = false;
   
   constructor(
     position: THREE.Vector3,
@@ -66,15 +75,15 @@ export class Car {
     this.mesh = createCarModel(color);
     this.mesh.position.copy(position);
     
-    // Rotate car to face forward based on start/finish positions
-    this.orientCarTowardsFinish();
-    
     // Create the physics body with an increased starting height
     this.body = physics.createCarBody(
       { width: 2, height: 1, length: 4 },
       new CANNON.Vec3(position.x, position.y, position.z),
       this.mesh
     );
+    
+    // Orient car towards finish line
+    this.orientCarTowardsFinish();
     
     // Add a collision callback to detect when car hits something
     this.body.addEventListener('collide', (event: { type: string; body: CANNON.Body; contact: CANNON.ContactEquation; }) => {
@@ -126,9 +135,12 @@ export class Car {
     // Default car faces z direction (0,0,1)
     // We need to rotate it to face the finish
     const angle = Math.atan2(direction.x, direction.z);
-    this.mesh.rotation.y = angle;
     
-    console.log("Car oriented towards finish with angle:", angle);
+    // Rotate 180 degrees to face the correct direction
+    this.mesh.rotation.y = angle + Math.PI;
+    this.body.quaternion.setFromEuler(0, angle + Math.PI, 0);
+    
+    console.log("Car oriented towards finish with angle:", angle + Math.PI);
   }
   
   /**
@@ -234,24 +246,55 @@ export class Car {
    * @param deltaTime Time since last update in seconds
    */
   update(deltaTime: number) {
-    // Update nitro state
-    if (this.nitroActive) {
-      this.nitroTimeLeft -= deltaTime * 1000; // Convert to ms
-      
-      if (this.nitroTimeLeft <= 0) {
-        this.nitroActive = false;
-        this.nitroTimeLeft = 0;
+    // Update race status
+    this.updateRaceStatus();
+    
+    // Update disable timer if car is disabled
+    if (this.isDisabled) {
+      this.disableTimer = Math.max(0, this.disableTimer - deltaTime * 1000);
+      if (this.disableTimer === 0) {
+        this.repair();
       }
     }
     
-    // Update race time if race is in progress
-    if (this.raceStatus.raceStarted && !this.raceStatus.raceFinished) {
-      this.raceStatus.raceTime = (Date.now() - this.raceStartTime) / 1000;
+    // Auto-drive logic
+    if (this.isAutoDriving) {
+      const elapsedTime = Date.now() - this.autoDriveStartTime;
+      const progress = Math.min(1, elapsedTime / this.AUTO_DRIVE_DURATION);
       
-      // Check if car has reached the finish line
-      const distanceToFinish = this.mesh.position.distanceTo(this.finishPosition);
-      if (distanceToFinish < this.CHECKPOINT_RADIUS) {
-        this.finishRace();
+      // Calculate target position
+      const targetPos = new THREE.Vector3();
+      targetPos.lerpVectors(this.startPosition, this.finishPosition, progress);
+      
+      // Calculate direction to target
+      const direction = new THREE.Vector3();
+      direction.subVectors(targetPos, this.mesh.position).normalize();
+      
+      // Apply force in the direction of movement
+      const force = new CANNON.Vec3(
+        direction.x * this.ACCELERATION_FORCE,
+        0,
+        direction.z * this.ACCELERATION_FORCE
+      );
+      this.body.applyForce(force, this.body.position);
+      
+      // Calculate and apply steering
+      const currentForward = new THREE.Vector3(0, 0, 1);
+      this.mesh.getWorldDirection(currentForward);
+      const angle = currentForward.angleTo(direction);
+      const cross = new THREE.Vector3().crossVectors(currentForward, direction);
+      const steeringAmount = cross.y * this.STEERING_FORCE;
+      
+      // Apply steering torque in world space
+      const steeringTorque = new CANNON.Vec3(0, steeringAmount, 0);
+      this.body.quaternion.vmult(steeringTorque, steeringTorque);
+      this.body.applyTorque(steeringTorque);
+      
+      // Check if we've reached the finish
+      if (progress >= 1) {
+        this.isAutoDriving = false;
+        this.raceStatus.raceFinished = true;
+        console.log("Auto-drive completed");
       }
     }
   }
@@ -311,45 +354,52 @@ export class Car {
   }
   
   /**
-   * Handle collision damage
-   * @param collisionType Type of collision for damage calculation
+   * Handle collision with different damage types
    */
   handleCollision(collisionType: 'minor' | 'wall' | 'headOn') {
-    if (this.crashed || this.isInitializing) return;
-    
-    // Calculate damage based on collision type
-    let damage = 0;
-    
+    if (this.isDisabled) return;
+
+    let damage: number;
     switch (collisionType) {
       case 'minor':
-        damage = 2; // Reduced from 5
+        damage = this.MINOR_BUMP_DAMAGE;
         break;
       case 'wall':
-        damage = 8; // Reduced from 10
+        damage = this.WALL_CRASH_DAMAGE;
         break;
       case 'headOn':
-        damage = 15; // Reduced from 20
+        damage = this.HEAD_ON_CRASH_DAMAGE;
         break;
+      default:
+        damage = this.MINOR_BUMP_DAMAGE;
     }
-    
-    // Apply damage
+
     this.health = Math.max(0, this.health - damage);
-    
-    console.log(`Collision: ${collisionType}, damage: ${damage}, health: ${this.health}`);
-    
-    // Check if crashed
-    if (this.health === 0) {
-      this.crashed = true;
-      console.log("Car crashed! Resetting in 3 seconds...");
-      
-      // Reset crash after 3 seconds
-      this.crashTimeout = window.setTimeout(() => {
-        this.health = 100;
-        this.crashed = false;
-        this.crashTimeout = null;
-        console.log("Car reset after crash");
-      }, 3000);
+    console.log(`Car took ${damage} damage. Health: ${this.health}%`);
+
+    if (this.health <= 0) {
+      this.disable();
     }
+  }
+  
+  /**
+   * Disable the car temporarily
+   */
+  private disable(): void {
+    this.isDisabled = true;
+    this.disableTimer = this.DISABLE_DURATION;
+    this.body.velocity.set(0, 0, 0);
+    console.log('Car disabled for 3 seconds');
+  }
+  
+  /**
+   * Repair the car to full health
+   */
+  repair(): void {
+    this.health = 100;
+    this.isDisabled = false;
+    this.disableTimer = 0;
+    console.log('Car repaired to 100% health');
   }
   
   /**
@@ -389,5 +439,30 @@ export class Car {
         }
       }
     });
+  }
+  
+  /**
+   * Start auto-drive mode
+   */
+  public startAutoDrive() {
+    this.isAutoDriving = true;
+    this.autoDriveStartTime = Date.now();
+    console.log("Starting auto-drive mode");
+  }
+  
+  /**
+   * Update race status
+   */
+  private updateRaceStatus() {
+    // Update race time if race is in progress
+    if (this.raceStatus.raceStarted && !this.raceStatus.raceFinished) {
+      this.raceStatus.raceTime = (Date.now() - this.raceStartTime) / 1000;
+      
+      // Check if car reached finish line
+      const distanceToFinish = this.mesh.position.distanceTo(this.finishPosition);
+      if (distanceToFinish < this.CHECKPOINT_RADIUS) {
+        this.finishRace();
+      }
+    }
   }
 } 

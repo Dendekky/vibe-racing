@@ -137,8 +137,8 @@ export class PhysicsWorld {
       position: position,
       material: carMaterial,
       // Add damping to prevent excessive bouncing and improve control
-      linearDamping: 0.4, // Increased from 0.3
-      angularDamping: 0.6  // Increased from 0.3
+      linearDamping: 0.3, // Reduced from 0.4
+      angularDamping: 0.4  // Reduced from 0.6
     });
     
     // Add the shape to the body
@@ -153,9 +153,9 @@ export class PhysicsWorld {
     // Tweak inertia for better handling
     const inertia = carBody.inertia;
     carBody.inertia.set(
-      inertia.x * 1.5, // More resistance to roll
+      inertia.x * 1.2, // More resistance to roll
       inertia.y,       // Keep original yaw inertia
-      inertia.z * 1.5  // More resistance to pitch
+      inertia.z * 1.2  // More resistance to pitch
     );
     carBody.updateMassProperties();
     
@@ -224,18 +224,8 @@ export class PhysicsWorld {
   }) {
     const {acceleration, braking, steering} = forces;
     
-    // Log forces being applied for debugging
-    if (acceleration > 0 || braking > 0 || steering !== 0) {
-      console.log("Applying forces:", forces);
-    }
-    
     // Get current velocity and car orientation
     const currentVelocity = carBody.velocity.length();
-    const carForwardDir = new CANNON.Vec3(0, 0, 1); // Local z-axis is forward
-    const worldForwardDir = carBody.quaternion.vmult(carForwardDir);
-    
-    // Apply forward/backward force (in car's local Z axis)
-    // Scale force based on velocity to prevent excessive acceleration
     const maxSpeed = 30; // Maximum speed in m/s (about 108 km/h)
     const speedFactor = Math.max(0, 1 - (currentVelocity / maxSpeed));
     
@@ -249,22 +239,22 @@ export class PhysicsWorld {
       finalForce = -braking * (currentVelocity / maxSpeed + 0.2);
     }
     
-    // Apply force in local coordinates (z-axis is forward for the car)
-    const forceDirection = new CANNON.Vec3(0, 0, finalForce);
-    carBody.applyLocalForce(forceDirection, new CANNON.Vec3(0, 0, 0));
+    // Apply forward/backward force in local space
+    if (finalForce !== 0) {
+      const force = new CANNON.Vec3(0, 0, finalForce);
+      carBody.applyLocalForce(force, new CANNON.Vec3(0, 0, 0));
+    }
     
-    // Steering is applied as rotational impulse rather than torque
-    // This makes the car rotate more predictably
+    // Apply steering torque (in car's local Y axis)
     if (steering !== 0) {
       // Apply steering based on speed - less steering at high speeds
       const steeringFactor = Math.max(0.2, 1 - (currentVelocity / maxSpeed * 0.8));
       const steeringAmount = steering * steeringFactor;
       
-      // Calculate the impulse in local space
-      const impulse = new CANNON.Vec3(0, steeringAmount * 0.03, 0);
-      
-      // Apply rotational impulse for steering
-      carBody.angularVelocity.y = steering * 0.05;
+      // Apply steering torque in world space
+      const steeringTorque = new CANNON.Vec3(0, steeringAmount, 0);
+      carBody.quaternion.vmult(steeringTorque, steeringTorque);
+      carBody.applyTorque(steeringTorque);
     }
     
     // Apply artificial gravity to keep the car grounded
@@ -286,11 +276,6 @@ export class PhysicsWorld {
     // Apply damping to rotation around X and Z axes to prevent somersaults
     carBody.angularVelocity.x *= 0.9;
     carBody.angularVelocity.z *= 0.9;
-    
-    // If significant forces are applied, log velocity for debugging
-    if (finalForce > 1000 || Math.abs(steering) > 10) {
-      console.log("Car velocity after force:", carBody.velocity, "Car Angular Velocity:", carBody.angularVelocity);
-    }
   }
 
   /**

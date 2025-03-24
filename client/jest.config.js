@@ -1,9 +1,15 @@
 module.exports = {
-  testEnvironment: 'node',
+  testEnvironment: 'jsdom',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
   testMatch: ['**/tests/**/*.test.(ts|tsx|js|jsx)'],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest'
+    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', {
+      presets: [
+        ['@babel/preset-env', { targets: { node: 'current' } }],
+        '@babel/preset-react',
+        '@babel/preset-typescript'
+      ]
+    }]
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
@@ -22,4 +28,7 @@ module.exports = {
       diagnostics: false,
     },
   },
+  transformIgnorePatterns: [
+    '/node_modules/(?!(@testing-library/jest-dom)/)'
+  ]
 }; 

@@ -110,8 +110,8 @@ export const TERRAINS: Record<string, TerrainConfig> = {
     ],
     skyColor: 0xfad6a5, // Light orange
     difficulty: 'easy',
-    startPosition: new THREE.Vector3(-30, 0.5, -30),
-    finishPosition: new THREE.Vector3(30, 0.5, 30)
+    startPosition: new THREE.Vector3(30, 0.5, 30),  // Changed to be at the back
+    finishPosition: new THREE.Vector3(-30, 0.5, -30) // Changed to be at the front
   },
   
   baku: {

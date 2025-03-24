@@ -42,26 +42,105 @@ This document outlines the architectural structure of the 3D Car Racing PvP game
 
 1. **GameCanvas.tsx**:
    - Purpose: Main 3D rendering component using Three.js
+   - Location: `src/components/game/GameCanvas.tsx`
    - Responsibilities:
      - Initializes the Three.js scene, camera, and renderer
      - Sets up lighting and basic environment
      - Handles window resize events
      - Manages animation loop
      - Cleans up resources to prevent memory leaks
+     - Manages game state (health, race status, debug info)
+     - Handles race completion and restart functionality
+   - Key Features:
+     - Responsive design with proper window resize handling
+     - Debug information display for development
+     - Health and race status HUD
+     - Minimap integration
+     - Race completion modal
+     - Performance optimization through proper resource cleanup
 
-2. **Physics Integration** (planned):
+2. **GameCanvas.module.css**:
+   - Purpose: Component-specific styling using CSS Modules
+   - Location: `src/components/game/GameCanvas.module.css`
+   - Responsibilities:
+     - Defines layout for game container and canvas
+     - Styles minimap positioning and appearance
+     - Manages HUD element positioning and visibility
+     - Handles modal styling and animations
+     - Ensures proper z-indexing for UI elements
+   - Key Features:
+     - Modular CSS to prevent style conflicts
+     - Responsive design considerations
+     - Consistent styling across different screen sizes
+     - Proper layering of UI elements
+     - Smooth transitions and animations
+
+3. **Physics Integration** (planned):
    - Purpose: Handle car physics and collisions using Cannon.js
    - Responsibilities:
      - Define car physical properties (mass, velocity, etc.)
      - Calculate collisions with terrain and other cars
      - Sync physics state with rendering
 
-3. **Control System** (planned):
+4. **Control System**:
    - Purpose: Handle user input for car control
+   - Location: `src/lib/controls.ts`
    - Responsibilities:
      - Process keyboard and gamepad input
      - Map inputs to car actions (accelerate, brake, steer)
      - Implement nitro boost functionality
+   - Key Features:
+     - Dual input support (keyboard and gamepad)
+     - WASD and arrow key support for keyboard
+     - Full gamepad support with proper event handling
+     - Nitro boost (spacebar for keyboard, A/X button for gamepad)
+     - Deadzone handling for gamepad inputs
+     - Proper cleanup of event listeners
+     - Comprehensive test coverage
+   - Technical Details:
+     - Uses native Gamepad API for controller support
+     - Implements proper event cleanup to prevent memory leaks
+     - Handles read-only properties in Gamepad interface
+     - Provides a clean interface for the physics system
+     - Updates at 60 FPS in the game loop
+
+5. **Car Class**:
+   - Purpose: Manage car state and behavior
+   - Location: `src/lib/game/car.ts`
+   - Responsibilities:
+     - Track car position, rotation, and velocity
+     - Manage health and damage system
+     - Handle crash mechanics and recovery
+     - Provide state updates for rendering
+   - Key Features:
+     - Health system with different damage types
+     - Automatic disable and recovery at 0% health
+     - Position and physics state management
+     - Clean interface for physics integration
+   - Technical Details:
+     - Health starts at 100%
+     - Damage types: minor (-5%), wall (-10%), head-on (-20%)
+     - 3-second disable period at 0% health
+     - Auto-repair to 100% after disable period
+     - Updates at 60 FPS in the game loop
+
+6. **HUD Component**:
+   - Purpose: Display game status and feedback
+   - Location: `src/components/ui/HUD.tsx`
+   - Responsibilities:
+     - Show health status with visual bar
+     - Display disable countdown when car is disabled
+     - Provide visual feedback for game state
+   - Key Features:
+     - Animated health bar with percentage
+     - Disable overlay with countdown timer
+     - Smooth transitions for state changes
+     - Accessibility support (ARIA attributes)
+   - Technical Details:
+     - Uses CSS Modules for styling
+     - Implements proper React patterns
+     - Handles real-time updates efficiently
+     - Provides visual feedback for all game states
 
 ### Server Side
 

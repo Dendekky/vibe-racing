@@ -1,17 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { PhysicsWorld } from './lib/physics';
-import { Car, RaceStatus } from './lib/car';
-import { Controls } from './lib/controls';
-import { TERRAINS, createTerrainModel } from './lib/models/terrains';
+import { PhysicsWorld } from '../../lib/physics';
+import { Car, RaceStatus } from '../../lib/car';
+import { Controls } from '../../lib/controls';
+import { TERRAINS, createTerrainModel } from '../../lib/models/terrains';
+import { Minimap } from '../../lib/minimap';
+import { PerformanceManager } from '../../lib/performance-settings';
+import { HUD } from '../ui/HUD';
+import styles from './GameCanvas.module.css';
 
 interface GameCanvasProps {
   terrainName?: string; // Optional terrain name parameter
 }
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
+const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'dubai' }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const minimapContainerRef = useRef<HTMLDivElement>(null);
   const [health, setHealth] = useState<number>(100);
   const [raceStatus, setRaceStatus] = useState<RaceStatus>({
     raceStarted: false,
@@ -33,9 +38,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
   
   // Reference to car for restart function
   const carRef = useRef<Car | null>(null);
+  const minimapInstanceRef = useRef<Minimap | null>(null);
+  const performanceManagerRef = useRef<PerformanceManager | null>(null);
   
   useEffect(() => {
-    if (!mountRef.current) return;
+    if (!mountRef.current || !minimapContainerRef.current) return;
     
     // Get terrain config (default to Monaco if not found)
     const terrainConfig = TERRAINS[terrainName] || TERRAINS.monaco;
@@ -83,7 +90,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
     
     // Position the car a bit above the start position
     const startPos = terrainConfig.startPosition.clone();
-    startPos.y = 5; // Higher starting position to avoid collision
+    startPos.y = 1; // Lower starting position to be closer to ground
     
     // Create car with start and finish positions
     const car = new Car(
@@ -95,6 +102,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
     );
     scene.add(car.mesh);
     carRef.current = car;
+    
+    // Initialize minimap
+    const minimap = new Minimap(minimapContainerRef.current);
+    minimap.setTerrain(terrain);
+    minimap.setCar(car.mesh);
+    minimapInstanceRef.current = minimap;
+    
+    // Initialize performance manager
+    const performanceManager = new PerformanceManager(renderer, terrain);
+    performanceManagerRef.current = performanceManager;
     
     // Log car and physics details for debugging
     console.log("Car created:", {
@@ -158,6 +175,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
       
       // Get and log control state for debugging
       const inputState = controls.getInputState();
+      // Only log if any input is active
+      if (inputState.forward || inputState.backward || inputState.left || inputState.right || inputState.nitro) {
+        console.log("Current input state:", inputState);
+      }
       
       // Apply controls to car
       car.applyControls(inputState, physics);
@@ -187,11 +208,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
         forces: `acc:${car.acceleration.toFixed(0)}, brake:${car.braking.toFixed(0)}, steer:${car.steering.toFixed(0)}`
       });
       
-      // Log car movement if it changes
-      if (Math.abs(car.body.velocity.x) > 0.1 || 
-          Math.abs(car.body.velocity.y) > 0.1 || 
-          Math.abs(car.body.velocity.z) > 0.1) {
-        console.log("Car is moving:", car.body.velocity);
+      // Update minimap
+      if (minimapInstanceRef.current) {
+        minimapInstanceRef.current.update();
       }
       
       // Update camera position to follow car
@@ -210,7 +229,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
     
     // Handle keyboard events directly for debugging
     const handleKeyDown = (e: KeyboardEvent) => {
-      console.log("Key pressed:", e.key);
+      // Ctrl+Shift+D for auto-drive
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+        if (carRef.current) {
+          carRef.current.startAutoDrive();
+        }
+      }
       
       // 'R' key to teleport back to start
       if (e.key.toLowerCase() === 'r' && !car.raceStatus.raceStarted) {
@@ -227,6 +251,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      
+      // Update minimap size
+      if (minimapInstanceRef.current) {
+        minimapInstanceRef.current.resize(200); // Keep minimap at fixed size
+      }
     };
     
     window.addEventListener('resize', handleResize);
@@ -238,6 +267,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
       
       if (mountRef.current) {
         mountRef.current.removeChild(renderer.domElement);
+      }
+      
+      if (minimapInstanceRef.current) {
+        minimapInstanceRef.current.dispose();
       }
       
       // Dispose of Three.js resources
@@ -258,41 +291,32 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
       // Dispose car
       car.dispose();
     };
-  }, [terrainName, showRestartModal]);
+  }, [terrainName]);
   
   // Function to handle race restart
   const handleRestartRace = () => {
     if (carRef.current) {
-      // Reset race status
-      carRef.current.resetRace();
-      
-      // Teleport car back to start position
+      // Reset race status and teleport back to start
       const startPos = TERRAINS[terrainName].startPosition.clone();
       startPos.y = 3; // Slightly above ground
       carRef.current.teleportTo(startPos);
-      
-      // Close the modal
+      carRef.current.resetRace();
       setShowRestartModal(false);
     }
   };
   
   return (
-    <>
-      <div ref={mountRef} style={{ width: '100%', height: '100vh' }} />
+    <div className={styles.gameContainer}>
+      <div ref={mountRef} className={styles.canvas} />
+      <div ref={minimapContainerRef} className={styles.minimap} />
+      <HUD 
+        health={carRef.current?.health || 100}
+        isDisabled={carRef.current?.isDisabled || false}
+        disableTimeRemaining={carRef.current?.disableTimer || 0}
+      />
       
       {/* Game HUD - Health and Debug Info */}
-      <div 
-        style={{ 
-          position: 'absolute', 
-          top: '20px', 
-          left: '20px', 
-          background: 'rgba(0,0,0,0.5)',
-          padding: '10px',
-          borderRadius: '5px',
-          color: 'white',
-          width: '300px'
-        }}
-      >
+      <div className={styles.debugInfo}>
         <div>Health: {health}%</div>
         <div style={{ 
           width: '200px', 
@@ -345,39 +369,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ terrainName = 'monaco' }) => {
       
       {/* Race completion modal */}
       {showRestartModal && (
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          background: 'rgba(0,0,0,0.85)',
-          padding: '20px',
-          borderRadius: '10px',
-          color: 'white',
-          width: '400px',
-          textAlign: 'center',
-          zIndex: 100
-        }}>
-          <h2>Race Completed!</h2>
-          <p style={{ fontSize: '24px' }}>Your time: <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>{raceStatus.raceTime.toFixed(2)}s</span></p>
-          <button 
-            onClick={handleRestartRace}
-            style={{
-              background: '#4CAF50',
-              color: 'white',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: '5px',
-              fontSize: '16px',
-              cursor: 'pointer',
-              marginTop: '20px'
-            }}
-          >
+        <div className={styles.restartModal}>
+          <h2>Race Finished!</h2>
+          <p style={{ fontSize: '24px' }}>Time: <span style={{ color: '#4CAF50', fontWeight: 'bold' }}>{raceStatus.raceTime.toFixed(2)}s</span></p>
+          <button onClick={handleRestartRace}>
             Restart Race
           </button>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
